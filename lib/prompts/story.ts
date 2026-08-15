@@ -1,0 +1,1 @@
+export const storyPrompt = (idea: string) => `Create an age-appropriate children's story from this idea: ${idea}. Return structured JSON with title, theme, moral, hook, ending, vocabulary and narration estimate.`;
