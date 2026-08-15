@@ -1,0 +1,1 @@
+export const storyboardPrompt = (sceneCount: number) => `Break the story into exactly ${sceneCount} visual scenes with camera, action, dialogue, narration, transitions, image prompts, animation prompts, sound effects and music mood.`;
