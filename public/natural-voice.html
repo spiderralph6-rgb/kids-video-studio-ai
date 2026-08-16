@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Natural AI Voice Lab</title>
+  <style>
+    body{font-family:system-ui,-apple-system,sans-serif;margin:0;background:#f8fafc;color:#0f172a}.wrap{max-width:760px;margin:auto;padding:24px}.card{background:#fff;border:1px solid #e2e8f0;border-radius:24px;padding:20px;box-shadow:0 10px 30px #0f172a12}h1{font-size:28px;margin:0 0 8px}.sub{color:#475569;line-height:1.5}.note{background:#f5f3ff;color:#5b21b6;border-radius:16px;padding:12px;margin:16px 0;font-size:14px}textarea,select,input{width:100%;box-sizing:border-box;margin-top:8px;border:1px solid #cbd5e1;border-radius:12px;padding:12px;font:inherit}textarea{min-height:150px;resize:vertical}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}.buttons{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}button{border:0;border-radius:12px;padding:12px 16px;font-weight:700;cursor:pointer}.primary{background:#7c3aed;color:white}.secondary{background:#ede9fe;color:#5b21b6}.status{margin-top:14px;font-size:14px;color:#475569}.error{color:#be123c}.tiny{font-size:12px;color:#64748b;margin-top:14px;line-height:1.45}@media(max-width:600px){.grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<div class="wrap"><div class="card">
+  <h1>🎙️ Natural AI Voice Lab</h1>
+  <p class="sub">Free neural narration that runs on your device. No paid TTS API and no per-use charge.</p>
+  <div class="note"><b>First use:</b> the voice model must download to your browser cache, so it can use a noticeable amount of mobile data and take longer on older phones. After that, it can be reused from cache.</div>
+  <label>Text to narrate<textarea id="text">Once upon a time, a tiny fox discovered that even the darkest night can sparkle with wonder.</textarea></label>
+  <div class="grid">
+    <label>Voice<select id="voice"><option value="af_heart">Heart · warm female</option><option value="af_bella">Bella · expressive female</option><option value="af_nicole">Nicole · calm female</option><option value="am_michael">Michael · male</option><option value="bm_george">George · British male</option><option value="bf_emma">Emma · British female</option></select></label>
+    <label>Speed<input id="speed" type="range" min="0.75" max="1.25" step="0.05" value="1"><span id="speedLabel">1.00x</span></label>
+  </div>
+  <div class="buttons"><button id="load" class="secondary">Load natural voice</button><button id="speak" class="primary" disabled>▶ Generate & play</button><button id="stop" class="secondary">■ Stop</button></div>
+  <audio id="player" controls style="width:100%;margin-top:16px;display:none"></audio>
+  <div id="status" class="status">Natural voice engine not loaded yet.</div>
+  <p class="tiny">This experimental mode uses Kokoro locally in the browser. If your phone cannot run it comfortably, use the normal Device Voice option in Kids Video Studio as the lightweight fallback.</p>
+</div></div>
+<script type="module">
+  let tts = null;
+  let audioUrl = null;
+  const status = document.getElementById('status');
+  const loadBtn = document.getElementById('load');
+  const speakBtn = document.getElementById('speak');
+  const stopBtn = document.getElementById('stop');
+  const player = document.getElementById('player');
+  const speed = document.getElementById('speed');
+  const speedLabel = document.getElementById('speedLabel');
+  speed.addEventListener('input',()=>speedLabel.textContent=Number(speed.value).toFixed(2)+'x');
+
+  loadBtn.addEventListener('click', async () => {
+    try {
+      loadBtn.disabled = true;
+      status.className='status';
+      status.textContent='Loading free neural voice model…';
+      const { KokoroTTS } = await import('https://esm.sh/kokoro-js@1.2.1');
+      tts = await KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-v1.0-ONNX', { dtype:'q4', device:'wasm' });
+      speakBtn.disabled = false;
+      status.textContent='Natural voice ready. Choose a voice and press Generate & play.';
+      loadBtn.textContent='✓ Voice loaded';
+    } catch (err) {
+      console.error(err);
+      loadBtn.disabled = false;
+      status.className='status error';
+      status.textContent='This phone/browser could not load the local neural voice. Your normal device voice still works as the fallback.';
+    }
+  });
+
+  speakBtn.addEventListener('click', async () => {
+    if(!tts) return;
+    try {
+      speakBtn.disabled=true;
+      status.className='status';
+      status.textContent='Generating natural narration on your device…';
+      player.pause();
+      const text=document.getElementById('text').value.trim();
+      if(!text){ status.textContent='Enter some text first.'; speakBtn.disabled=false; return; }
+      const audio=await tts.generate(text,{voice:document.getElementById('voice').value,speed:Number(speed.value)});
+      const blob=await audio.toBlob();
+      if(audioUrl) URL.revokeObjectURL(audioUrl);
+      audioUrl=URL.createObjectURL(blob);
+      player.src=audioUrl;
+      player.style.display='block';
+      await player.play();
+      status.textContent='Playing natural AI narration.';
+    } catch(err){
+      console.error(err);
+      status.className='status error';
+      status.textContent='Voice generation failed on this device. Try a shorter paragraph or use Device Voice.';
+    } finally { speakBtn.disabled=false; }
+  });
+
+  stopBtn.addEventListener('click',()=>{player.pause();player.currentTime=0;status.textContent='Stopped.'});
+</script>
+</body>
+</html>
