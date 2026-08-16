@@ -15,23 +15,24 @@ const download = (name: string, text: string, type = "text/plain") => { const bl
 export function StudioApp() {
   const [idea, setIdea] = useState("A little fox who is afraid of the dark discovers that the stars are his friends.");
   const [project, setProject] = useState<Project | null>(null); const [loading, setLoading] = useState(false); const [tab, setTab] = useState<Tab>("Story"); const [error, setError] = useState(""); const [speaking, setSpeaking] = useState(false);
-  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]); const [voiceName, setVoiceName] = useState(""); const [rate, setRate] = useState(0.95); const [pitch, setPitch] = useState(1.05);
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]); const [voiceURI, setVoiceURI] = useState(""); const [rate, setRate] = useState(0.95); const [pitch, setPitch] = useState(1.05);
   const progress = useMemo(() => ["Writing story", "Designing characters", "Building storyboard", "Preparing voiceover", "Finalizing project"], []); const [progressIndex, setProgressIndex] = useState(0);
+  const englishVoices = useMemo(() => voices.filter(v => /^en([-_]|$)/i.test(v.lang)), [voices]);
 
   useEffect(() => {
     if (typeof window === "undefined" || !window.speechSynthesis) return;
     const loadVoices = () => {
       const available = window.speechSynthesis.getVoices();
       setVoices(available);
-      if (!voiceName && available.length) {
-        const english = available.find(v => /^en[-_]/i.test(v.lang));
-        setVoiceName((english ?? available[0]).name);
+      if (!voiceURI && available.length) {
+        const english = available.find(v => /^en([-_]|$)/i.test(v.lang));
+        setVoiceURI((english ?? available[0]).voiceURI);
       }
     };
     loadVoices();
     window.speechSynthesis.addEventListener("voiceschanged", loadVoices);
     return () => window.speechSynthesis.removeEventListener("voiceschanged", loadVoices);
-  }, [voiceName]);
+  }, [voiceURI]);
 
   async function createProject() {
     setLoading(true); setError(""); setProgressIndex(0); const ticker = window.setInterval(() => setProgressIndex(v => Math.min(v + 1, progress.length - 1)), 180);
@@ -42,16 +43,23 @@ export function StudioApp() {
   function speakText(text: string) {
     const synth = window.speechSynthesis;
     if (!synth || typeof SpeechSynthesisUtterance === "undefined") { setError("Free device narration is not supported by this browser."); return; }
+    const currentVoices = synth.getVoices();
+    setVoices(currentVoices);
+    const selected = currentVoices.find(v => v.voiceURI === voiceURI) ?? currentVoices.find(v => /^en([-_]|$)/i.test(v.lang)) ?? currentVoices[0];
     synth.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
-    const selected = voices.find(v => v.name === voiceName);
-    if (selected) utterance.voice = selected;
+    if (selected) {
+      utterance.voice = selected;
+      utterance.lang = selected.lang;
+    } else {
+      utterance.lang = "en-US";
+    }
     utterance.rate = rate;
     utterance.pitch = pitch;
     utterance.onend = () => setSpeaking(false);
     utterance.onerror = () => setSpeaking(false);
     setSpeaking(true);
-    synth.speak(utterance);
+    window.setTimeout(() => synth.speak(utterance), 80);
   }
   function playNarration() { if (project) speakText(project.voiceLines.map(v => v.text).join(" ")); }
   function previewVoice() { speakText("Once upon a time, a tiny fox discovered that even the darkest night can sparkle with wonder."); }
@@ -70,7 +78,7 @@ export function StudioApp() {
         {tab==="Story" && <div><p className="text-sm font-bold uppercase tracking-wider text-violet-600">Story</p><h2 className="mt-2 text-4xl font-black">{project.story.title}</h2><p className="mt-3 text-lg text-slate-600">{project.story.logline}</p><div className="mt-6 grid gap-4 md:grid-cols-3"><Card title="Theme" text={project.story.theme}/><Card title="Moral" text={project.story.moral}/><Card title="Opening hook" text={project.story.openingHook}/></div><article className="mt-6 rounded-3xl bg-white p-7 shadow-soft ring-1 ring-slate-200"><h3 className="text-lg font-bold">Full story</h3><p className="mt-4 whitespace-pre-line leading-8 text-slate-700">{project.story.fullStory}</p></article></div>}
         {tab==="Characters" && <div><p className="text-sm font-bold uppercase tracking-wider text-violet-600">Character Bible</p><h2 className="mt-2 text-3xl font-black">Keep every character consistent</h2><div className="mt-6 grid gap-5 md:grid-cols-2">{project.characters.map(c=><div key={c.id} className="rounded-3xl bg-white p-6 shadow-soft ring-1 ring-slate-200"><div className="flex items-center justify-between"><h3 className="text-xl font-bold">{c.name}</h3><span className="rounded-full bg-slate-100 px-2 py-1 text-xs">{c.role}</span></div><p className="mt-3 text-sm leading-6 text-slate-600">{c.personality}</p><div className="mt-4 rounded-2xl bg-violet-50 p-4"><p className="text-xs font-bold uppercase text-violet-700">Consistency prompt</p><p className="mt-2 text-sm leading-6 text-violet-950">{c.consistencyPrompt}</p></div></div>)}</div></div>}
         {tab==="Storyboard" && <div><p className="text-sm font-bold uppercase tracking-wider text-violet-600">Storyboard</p><h2 className="mt-2 text-3xl font-black">{project.scenes.length} production-ready scenes</h2><div className="mt-6 space-y-4">{project.scenes.map(s=><div key={s.id} className="grid gap-5 rounded-3xl bg-white p-5 shadow-soft ring-1 ring-slate-200 md:grid-cols-[90px_1fr]"><div className="flex h-20 items-center justify-center rounded-2xl bg-slate-900 text-2xl font-black text-white">{String(s.number).padStart(2,"0")}</div><div><div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-lg font-bold">{s.title}</h3><span className="text-xs font-semibold text-slate-500">{s.durationSeconds}s · {s.shotType}</span></div><p className="mt-2 text-sm text-slate-600">{s.action}</p><details className="mt-3 rounded-xl bg-slate-50 p-3"><summary className="cursor-pointer text-sm font-semibold">Image + animation prompts</summary><p className="mt-3 text-xs leading-5 text-slate-600"><b>Image:</b> {s.imagePrompt}</p><p className="mt-3 text-xs leading-5 text-slate-600"><b>Animation:</b> {s.animationPrompt}</p></details></div></div>)}</div></div>}
-        {tab==="Voice" && <div><p className="text-sm font-bold uppercase tracking-wider text-violet-600">Voice Production</p><h2 className="mt-2 text-3xl font-black">Narration and dialogue</h2><div className="mt-6 rounded-3xl bg-violet-50 p-5 ring-1 ring-violet-200"><div><p className="font-bold text-violet-950">Free device narration</p><p className="mt-1 text-sm text-violet-800">Choose from voices already available on your phone or browser. No paid TTS API and no usage charge.</p></div><div className="mt-5 grid gap-4 md:grid-cols-3"><label className="text-sm font-semibold text-violet-950">Voice<select value={voiceName} onChange={e=>setVoiceName(e.target.value)} className="mt-2 w-full rounded-xl bg-white p-3 text-sm ring-1 ring-violet-200"><option value="">Default device voice</option>{voices.map(v=><option key={`${v.name}-${v.lang}`} value={v.name}>{v.name} ({v.lang})</option>)}</select></label><label className="text-sm font-semibold text-violet-950">Speed: {rate.toFixed(2)}x<input type="range" min="0.65" max="1.35" step="0.05" value={rate} onChange={e=>setRate(Number(e.target.value))} className="mt-3 w-full"/></label><label className="text-sm font-semibold text-violet-950">Pitch: {pitch.toFixed(2)}<input type="range" min="0.7" max="1.5" step="0.05" value={pitch} onChange={e=>setPitch(Number(e.target.value))} className="mt-3 w-full"/></label></div><div className="mt-5 flex flex-wrap gap-2"><button onClick={previewVoice} disabled={speaking} className="rounded-xl bg-white px-4 py-2 text-sm font-bold text-violet-700 ring-1 ring-violet-200 disabled:opacity-50">🔊 Preview voice</button><button onClick={playNarration} disabled={speaking} className="rounded-xl bg-violet-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{speaking ? "Playing…" : "▶ Play narration"}</button><button onClick={stopNarration} className="rounded-xl bg-white px-4 py-2 text-sm font-bold text-violet-700 ring-1 ring-violet-200">■ Stop</button></div>{voices.length === 0 && <p className="mt-3 text-xs text-violet-700">If no voices appear immediately, tap Preview once or reopen this page so your browser can load the device voice list.</p>}</div><div className="mt-6 overflow-hidden rounded-3xl bg-white shadow-soft ring-1 ring-slate-200">{project.voiceLines.map(v=><div key={v.id} className="grid gap-3 border-b p-4 last:border-0 md:grid-cols-[120px_1fr_120px]"><span className="font-bold">{v.speaker}</span><div><p>{v.text}</p><p className="mt-1 text-xs text-slate-500">{v.direction}</p></div><span className="text-sm text-slate-500">{v.startSeconds}s–{v.endSeconds}s</span></div>)}</div></div>}
+        {tab==="Voice" && <div><p className="text-sm font-bold uppercase tracking-wider text-violet-600">Voice Production</p><h2 className="mt-2 text-3xl font-black">Narration and dialogue</h2><div className="mt-6 rounded-3xl bg-violet-50 p-5 ring-1 ring-violet-200"><div><p className="font-bold text-violet-950">Free device narration</p><p className="mt-1 text-sm text-violet-800">Choose from English voices your phone or browser actually exposes. No paid TTS API and no usage charge.</p></div><div className="mt-5 grid gap-4 md:grid-cols-3"><label className="text-sm font-semibold text-violet-950">Voice<select value={voiceURI} onChange={e=>setVoiceURI(e.target.value)} className="mt-2 w-full rounded-xl bg-white p-3 text-sm ring-1 ring-violet-200"><option value="">Default English voice</option>{englishVoices.map(v=><option key={v.voiceURI} value={v.voiceURI}>{v.name} ({v.lang}){v.localService ? " · on device" : ""}</option>)}</select></label><label className="text-sm font-semibold text-violet-950">Speed: {rate.toFixed(2)}x<input type="range" min="0.65" max="1.35" step="0.05" value={rate} onChange={e=>setRate(Number(e.target.value))} className="mt-3 w-full"/></label><label className="text-sm font-semibold text-violet-950">Pitch: {pitch.toFixed(2)}<input type="range" min="0.7" max="1.5" step="0.05" value={pitch} onChange={e=>setPitch(Number(e.target.value))} className="mt-3 w-full"/></label></div><div className="mt-5 flex flex-wrap gap-2"><button onClick={previewVoice} disabled={speaking} className="rounded-xl bg-white px-4 py-2 text-sm font-bold text-violet-700 ring-1 ring-violet-200 disabled:opacity-50">🔊 Preview voice</button><button onClick={playNarration} disabled={speaking} className="rounded-xl bg-violet-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{speaking ? "Playing…" : "▶ Play narration"}</button><button onClick={stopNarration} className="rounded-xl bg-white px-4 py-2 text-sm font-bold text-violet-700 ring-1 ring-violet-200">■ Stop</button></div>{englishVoices.length === 0 && <p className="mt-3 text-xs text-violet-700">Your browser has not exposed any distinct English voices yet. In that case Android may only provide one underlying TTS voice to web apps.</p>}</div><div className="mt-6 overflow-hidden rounded-3xl bg-white shadow-soft ring-1 ring-slate-200">{project.voiceLines.map(v=><div key={v.id} className="grid gap-3 border-b p-4 last:border-0 md:grid-cols-[120px_1fr_120px]"><span className="font-bold">{v.speaker}</span><div><p>{v.text}</p><p className="mt-1 text-xs text-slate-500">{v.direction}</p></div><span className="text-sm text-slate-500">{v.startSeconds}s–{v.endSeconds}s</span></div>)}</div></div>}
         {tab==="Export" && <div><p className="text-sm font-bold uppercase tracking-wider text-violet-600">Export Center</p><h2 className="mt-2 text-3xl font-black">Take the project anywhere</h2><div className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-3"><ExportButton label="Project JSON" onClick={()=>download(`${project.id}.json`, JSON.stringify(project,null,2),"application/json")}/><ExportButton label="Story Markdown" onClick={()=>download(`${project.id}-story.md`, `# ${project.story.title}\n\n${project.story.fullStory}`)}/><ExportButton label="Subtitles SRT" onClick={()=>download(`${project.id}.srt`, projectToSrt(project))}/></div><div className="mt-6 rounded-2xl border border-dashed border-slate-300 p-5 text-sm text-slate-500">MP4 rendering and ZIP asset packaging are intentionally provider-dependent placeholders. The data model and provider adapters are ready to extend without pretending a renderer exists.</div></div>}
       </div></section></div>
   </main>;
