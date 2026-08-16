@@ -23,17 +23,18 @@ export function StudioApp() {
   }
   function playNarration() {
     if (!project) return;
-    if (!("speechSynthesis" in window)) { window.alert("This browser does not support free device narration."); return; }
-    window.speechSynthesis.cancel();
+    const synth = window.speechSynthesis;
+    if (!synth || typeof SpeechSynthesisUtterance === "undefined") { setError("Free device narration is not supported by this browser."); return; }
+    synth.cancel();
     const utterance = new SpeechSynthesisUtterance(project.voiceLines.map(v => v.text).join(" "));
     utterance.rate = 0.95;
     utterance.pitch = 1.05;
     utterance.onend = () => setSpeaking(false);
     utterance.onerror = () => setSpeaking(false);
     setSpeaking(true);
-    window.speechSynthesis.speak(utterance);
+    synth.speak(utterance);
   }
-  function stopNarration() { if ("speechSynthesis" in window) window.speechSynthesis.cancel(); setSpeaking(false); }
+  function stopNarration() { const synth = window.speechSynthesis; if (synth) synth.cancel(); setSpeaking(false); }
   if (!project) return <main className="min-h-screen px-6 py-10 lg:px-12"><div className="mx-auto max-w-6xl">
     <header className="flex items-center justify-between"><div className="flex items-center gap-3"><div className="rounded-2xl bg-violet-600 p-3 text-white"><Clapperboard /></div><div><h1 className="text-xl font-bold">Kids Video Studio AI</h1><p className="text-sm text-slate-500">One idea → a complete animation production package</p></div></div><span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">Mock AI Mode</span></header>
     <section className="mt-16 grid gap-8 lg:grid-cols-[1.15fr_.85fr] lg:items-center"><div><span className="inline-flex items-center gap-2 rounded-full bg-violet-100 px-3 py-1 text-sm font-semibold text-violet-700"><Sparkles size={16}/> Story to studio</span><h2 className="mt-5 text-5xl font-black tracking-tight text-slate-900">What should today's story be about?</h2><p className="mt-5 max-w-2xl text-lg leading-8 text-slate-600">Create the story, characters, storyboard, image and animation prompts, voiceover, sound plan, subtitles and export files in one workspace.</p>
