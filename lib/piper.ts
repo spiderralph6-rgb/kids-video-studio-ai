@@ -32,12 +32,14 @@ export async function speakWithPiper(
   if (typeof window === "undefined") throw new Error("Neural narration only runs in the browser.");
 
   cleanupAudio();
-  const { predict } = await import("@mintplex-labs/piper-tts-web");
-  const wav = await predict({
-    text,
-    voiceId: options.voiceId ?? DEFAULT_PIPER_VOICE,
-    onProgress: options.onProgress,
-  });
+  const tts = await import("@mintplex-labs/piper-tts-web");
+  const wav = await tts.predict(
+    {
+      text,
+      voiceId: options.voiceId ?? DEFAULT_PIPER_VOICE,
+    },
+    options.onProgress,
+  );
 
   activeUrl = URL.createObjectURL(wav);
   activeAudio = new Audio(activeUrl);
